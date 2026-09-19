@@ -1,0 +1,36 @@
+# BeastarsBot logrotate config for the nohup fallback.
+#
+# ONLY needed if the bot is started with something like:
+#   nohup java -jar BeastarsBot.jar > /home/pi/BeastarsBot/out.log 2>&1 &
+#
+# In that setup nothing rotates out.log and it grows until the partition fills.
+# On a multi-year unattended Pi that is a real ending, not a theoretical one.
+#
+# Prefer the systemd unit instead (deploy/beastarsbot.service). Then journald
+# handles retention and this file is unnecessary.
+#
+# Install:
+#   sudo cp deploy/logrotate-beastarsbot /etc/logrotate.d/beastarsbot
+#   sudo logrotate --debug /etc/logrotate.d/beastarsbot   # dry run
+#
+# Adjust the path to match wherever stdout is actually redirected.
+
+/home/pi/BeastarsBot/out.log {
+    daily
+    rotate 7
+    maxsize 20M
+
+    compress
+    delaycompress
+    missingok
+    notifempty
+
+    # The JVM holds the fd open, so the file must be truncated in place rather
+    # than renamed, because a rename would leave the process writing to an unlinked
+    # inode and the "rotated" log would stay empty forever.
+    copytruncate
+
+    # Match the service user so the rotated files stay readable.
+    su pi pi
+    create 0640 pi pi
+}

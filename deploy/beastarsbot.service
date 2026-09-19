@@ -1,0 +1,67 @@
+# BeastarsBot systemd unit
+#
+# Install:
+#   sudo cp deploy/beastarsbot.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now beastarsbot
+#
+# Logs:  journalctl -u beastarsbot -f
+#
+# This is the recommended way to run the bot. The process writes to stdout and
+# nothing else; journald captures it and applies the retention caps configured in
+# journald.conf (see deploy/README.md). There is no application log file to rotate,
+# and deliberately so: an append-only file on the Pi's flash is the wear pattern
+# this project avoids everywhere else.
+
+[Unit]
+Description=BeastarsBot (Discord)
+Documentation=https://github.com/
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+
+# --- adjust these three to match the install --------------------------------
+User=pi
+WorkingDirectory=/home/pi/BeastarsBot
+ExecStart=/usr/bin/java -jar /home/pi/BeastarsBot/BeastarsBot-2.0.jar
+# ----------------------------------------------------------------------------
+
+# Heap ceiling. The bot's caches are all bounded, so this mostly guards against a
+# runaway rather than sizing for load. Raise if the ready banner's Memory row sits
+# near the cap.
+Environment=JAVA_TOOL_OPTIONS=-Xmx320m -XX:+ExitOnOutOfMemoryError
+
+# stdout/stderr -> journald. No file appender anywhere in the app.
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=beastarsbot
+
+# Restart on any exit, including a clean one: the bot has no successful terminal
+# state. The delay stops a crash-loop from hammering Discord's login endpoint and
+# earning a rate-limit ban.
+Restart=always
+RestartSec=15s
+
+# If it fails 5 times in 10 minutes something is genuinely broken; stop and leave
+# the unit failed so `systemctl status` shows it rather than looping silently.
+StartLimitBurst=5
+StartLimitIntervalSec=600
+
+# The shutdown hook drains the command executor and closes Mongo; give it room.
+TimeoutStopSec=30
+KillSignal=SIGTERM
+
+# --- hardening --------------------------------------------------------------
+# The bot reads its jar and .env and writes nothing to disk, so it can be locked
+# down hard. Drop ProtectHome if the install lives under /home and this bites.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+
+[Install]
+WantedBy=multi-user.target

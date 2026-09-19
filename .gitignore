@@ -37,3 +37,12 @@ build/
 
 ### Mac OS ###
 .DS_Store
+### Secrets — never commit these ###
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+### IDE (local only) ###
+.idea/
